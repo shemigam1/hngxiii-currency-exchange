@@ -11,13 +11,13 @@ import (
 // DELETE /countries/:name → Delete a country record
 // GET /status → Show total countries and last refresh timestamp
 // GET /countries/image → serve summary image
-
 func Routes(r *gin.Engine) {
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "Welcome to HNGXIII Currency Exchange API",
 		})
-	}
+	})
+
 	countriesGroup := r.Group("/countries")
 	{
 		countriesGroup.POST("/refresh", services.RefreshCountries)
@@ -25,6 +25,7 @@ func Routes(r *gin.Engine) {
 		countriesGroup.GET("/:name", services.GetCountry)
 		countriesGroup.DELETE("/:name", services.DeleteCountry)
 	}
+
 	r.GET("/status", services.GetStatus)
 	r.GET("/countries/image", services.GetSummaryImage)
 }
