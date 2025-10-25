@@ -19,9 +19,9 @@ type CountryInfo struct {
 	Capital      string  `gorm:"column:capital"`
 	Region       string  `gorm:"column:region"`
 	Population   int64   `gorm:"column:population;not null"`
-	CurrencyCode string  `gorm:"column:currency_code;not null"`
-	ExchangeRate float64 `gorm:"column:exchange_rate;not null"`
-	EstimatedGdp float64 `gorm:"column:estimated_gdp;not null"`
+	CurrencyCode string  `gorm:"column:currency_code"`
+	ExchangeRate float64 `gorm:"column:exchange_rate"`
+	EstimatedGdp float64 `gorm:"column:estimated_gdp"`
 	FlagUrl      string  `gorm:"column:flag_url"`
 }
 
@@ -45,7 +45,7 @@ type CountryResponse struct {
 	ExchangeRate float64 `json:"exchange_rate"`
 	EstimatedGdp float64 `json:"estimated_gdp"`
 	FlagUrl      string  `json:"flag_url"`
-	UpdatedAt    string  `json:"last_refreshed_a"`
+	UpdatedAt    string  `json:"last_refreshed_at"`
 }
 
 type FlagsResponse struct {
@@ -61,4 +61,20 @@ type CacheImage struct {
 	TotalCountries                 int64             `json:"total_countries"`
 	TopFiveCountriesByEstimatedGdp []CountryResponse `json:"top_five_countries_by_estimated_gdp"`
 	UpdatedAt                      string            `json:"last_refreshed_at"`
+}
+
+type CountryDataResponse struct {
+	Name       string     `json:"name"`
+	Capital    string     `json:"capital"`
+	Region     string     `json:"region"`
+	Population int64      `json:"population"`
+	Currencies []Currency `json:"currencies"`
+	Flag       string     `json:"flag"`
+	// Independent bool       `json:"independent"`
+}
+
+type Currency struct {
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	Symbol string `json:"symbol"`
 }
