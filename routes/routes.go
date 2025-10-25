@@ -13,6 +13,11 @@ import (
 // GET /countries/image → serve summary image
 
 func Routes(r *gin.Engine) {
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Welcome to HNGXIII Currency Exchange API",
+		})
+	}
 	countriesGroup := r.Group("/countries")
 	{
 		countriesGroup.POST("/refresh", services.RefreshCountries)
