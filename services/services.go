@@ -80,7 +80,7 @@ func RefreshCountries(c *gin.Context) {
 		return
 	}
 
-	for _, country := range countries[:10] {
+	for _, country := range countries {
 		fmt.Println(country.Name)
 		var countryInfo models.CountryInfo
 		countryInfo.Name = country.Name
