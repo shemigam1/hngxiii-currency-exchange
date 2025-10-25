@@ -6,18 +6,13 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shemigam1/hngxiii-currency-exchange/db"
 	"github.com/shemigam1/hngxiii-currency-exchange/models"
+	"gorm.io/gorm"
 )
-
-// POST /countries/refresh → Fetch all countries and exchange rates, then cache them in the database
-// GET /countries → Get all countries from the DB (support filters and sorting) - ?region=Africa | ?currency=NGN | ?sort=gdp_desc
-// GET /countries/:name → Get one country by name
-// DELETE /countries/:name → Delete a country record
-// GET /status → Show total countries and last refresh timestamp
-// GET /countries/image → serve summary image
 
 type ExchangeRateResponse struct {
 	Rates map[string]float64 `json:"rates"`
@@ -49,46 +44,59 @@ func RefreshCountries(c *gin.Context) {
 	countries_url := "https://restcountries.com/v2/all?fields=name,capital,region,population,flag,currencies"
 	resp, err := http.Get(countries_url)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch countries"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "External data source unavailable",
+			"details": "Could not fetch data from restcountries API",
+		})
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "External data source unavailable",
+			"details": "Could not fetch data from restcountries API",
+		})
 		return
 	}
 
-	// Unmarshal into a slice of structs
 	var countries []models.CountryDataResponse
-	// fmt.Println(body[:4])
 	err = json.Unmarshal(body, &countries)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse response"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "External data source unavailable",
+			"details": "Could not fetch data from restcountries API",
+		})
 		return
 	}
 
-	// Now you can loop through and process
 	rates, err := GetExchangeRates()
-	fmt.Println(rates)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "External data source unavailable",
+			"details": "Could not fetch data from exchange rates API",
+		})
+		return
+	}
+
 	for _, country := range countries[:10] {
 		fmt.Println(country.Name)
-		// Save to database, transform data, etc.
 		var countryInfo models.CountryInfo
 		countryInfo.Name = country.Name
 		countryInfo.Capital = country.Capital
 		countryInfo.Region = country.Region
 		countryInfo.Population = country.Population
 		countryInfo.FlagUrl = country.Flag
+
 		if country.Currencies == nil || len(country.Currencies) <= 0 {
 			countryInfo.CurrencyCode = ""
 			countryInfo.ExchangeRate = 0
 			countryInfo.EstimatedGdp = 0
-
 		} else {
 			countryInfo.CurrencyCode = country.Currencies[0].Code
 		}
+
 		if _, exists := rates[countryInfo.CurrencyCode]; exists {
 			countryInfo.ExchangeRate = rates[countryInfo.CurrencyCode]
 			countryInfo.EstimatedGdp = float64(countryInfo.Population) * float64(1000+rand.Intn(1001)) / countryInfo.ExchangeRate
@@ -96,6 +104,7 @@ func RefreshCountries(c *gin.Context) {
 			countryInfo.ExchangeRate = 0
 			countryInfo.EstimatedGdp = 0
 		}
+
 		result := db.DB.Where("name = ?", countryInfo.Name).
 			Assign(countryInfo).
 			FirstOrCreate(&countryInfo)
@@ -106,25 +115,162 @@ func RefreshCountries(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, countries)
+	c.JSON(http.StatusOK, gin.H{"message": "Countries refreshed successfully"})
 }
 
 func GetAllCountries(c *gin.Context) {
-	c.JSON(200, "get all contries working")
+	var countries []models.CountryInfo
+	query := db.DB
+
+	if region := c.Query("region"); region != "" {
+		query = query.Where("region = ?", region)
+	}
+
+	if currency := c.Query("currency"); currency != "" {
+		query = query.Where("currency_code = ?", currency)
+	}
+
+	if sort := c.Query("sort"); sort != "" {
+		switch sort {
+		case "gdp_desc":
+			query = query.Order("estimated_gdp DESC")
+		case "gdp_asc":
+			query = query.Order("estimated_gdp ASC")
+		case "population_desc":
+			query = query.Order("population DESC")
+		case "population_asc":
+			query = query.Order("population ASC")
+		case "name_asc":
+			query = query.Order("name ASC")
+		case "name_desc":
+			query = query.Order("name DESC")
+		}
+	}
+
+	result := query.Find(&countries)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	if len(countries) == 0 {
+		c.JSON(http.StatusOK, []models.CountryResponse{})
+		return
+	}
+
+	var response []models.CountryResponse
+	for _, country := range countries {
+		response = append(response, models.CountryResponse{
+			ID:           fmt.Sprintf("%d", country.ID),
+			Name:         country.Name,
+			Capital:      country.Capital,
+			Region:       country.Region,
+			Population:   country.Population,
+			CurrencyCode: country.CurrencyCode,
+			ExchangeRate: country.ExchangeRate,
+			EstimatedGdp: country.EstimatedGdp,
+			FlagUrl:      country.FlagUrl,
+			UpdatedAt:    country.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func GetCountry(c *gin.Context) {
-	c.JSON(200, "get country working")
+	name := c.Query("name")
+
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Validation failed",
+			"details": gin.H{"name": "is required"},
+		})
+		return
+	}
+
+	var country models.CountryInfo
+	result := db.DB.Where("name = ?", name).First(&country)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Country not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	response := models.CountryResponse{
+		ID:           fmt.Sprintf("%d", country.ID),
+		Name:         country.Name,
+		Capital:      country.Capital,
+		Region:       country.Region,
+		Population:   country.Population,
+		CurrencyCode: country.CurrencyCode,
+		ExchangeRate: country.ExchangeRate,
+		EstimatedGdp: country.EstimatedGdp,
+		FlagUrl:      country.FlagUrl,
+		UpdatedAt:    country.UpdatedAt.Format(time.RFC3339),
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func DeleteCountry(c *gin.Context) {
-	c.JSON(200, "delete country working")
+	name := c.Query("name")
+
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Validation failed",
+			"details": gin.H{"name": "is required"},
+		})
+		return
+	}
+
+	result := db.DB.Where("name = ?", name).Delete(&models.CountryInfo{})
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Country not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Country deleted successfully"})
 }
 
 func GetStatus(c *gin.Context) {
-	c.JSON(200, "get status working")
+	var total int64
+	var lastCountry models.CountryInfo
+
+	result := db.DB.Model(&models.CountryInfo{}).Count(&total)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	result = db.DB.Order("updated_at DESC").First(&lastCountry)
+	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	var lastRefreshedAt string
+	if result.Error == gorm.ErrRecordNotFound {
+		lastRefreshedAt = ""
+	} else {
+		lastRefreshedAt = lastCountry.UpdatedAt.Format(time.RFC3339)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total_countries":   total,
+		"last_refreshed_at": lastRefreshedAt,
+	})
 }
 
 func GetSummaryImage(c *gin.Context) {
-	c.JSON(200, "get summary image working")
+	c.JSON(http.StatusNotFound, gin.H{"error": "Summary image not found"})
 }
