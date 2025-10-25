@@ -1,1 +1,69 @@
 tmp
+
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*_test
+
+# Output of 'go build'
+*.o
+*.a
+
+# Dependency directories
+vendor/
+
+# Go module cache (if not using vendor/)
+# This depends on your Go version and workflow
+# go.mod and go.sum should *not* be ignored
+# if using Go modules.
+# For Go versions < 1.11, you might ignore 'pkg/' or 'src/'
+# depending on your GOPATH setup.
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.swp
+*.bak
+
+# Log files
+*.log
+
+# Environment variables and configuration (local)
+.env
+.env.*
+config.local.go
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
