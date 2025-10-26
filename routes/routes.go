@@ -22,8 +22,8 @@ func Routes(r *gin.Engine) {
 	{
 		countriesGroup.POST("/refresh", services.RefreshCountries)
 		countriesGroup.GET("/", services.GetAllCountries)
-		countriesGroup.GET("/:name", services.GetCountry)
 		countriesGroup.DELETE("/:name", services.DeleteCountry)
+		countriesGroup.GET("/:name", services.GetCountry)
 	}
 
 	r.GET("/status", services.GetStatus)

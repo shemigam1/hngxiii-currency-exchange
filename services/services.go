@@ -178,7 +178,8 @@ func GetAllCountries(c *gin.Context) {
 }
 
 func GetCountry(c *gin.Context) {
-	name := c.Query("name")
+	name := c.Param("name")
+	fmt.Println(name)
 
 	if name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -217,7 +218,7 @@ func GetCountry(c *gin.Context) {
 }
 
 func DeleteCountry(c *gin.Context) {
-	name := c.Query("name")
+	name := c.Param("name")
 
 	if name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
